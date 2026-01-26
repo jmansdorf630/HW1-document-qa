@@ -1,5 +1,5 @@
 import streamlit as st
-from openai import OpenAI
+from openai import OpenAI, AuthenticationError
 import PyPDF2
 
 def read_pdf(uploaded_file):
@@ -60,11 +60,16 @@ else:
         ]
 
         # Generate an answer using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-5",
-            messages=messages,
-            stream=True,
-        )
+        try:
+            stream = client.chat.completions.create(
+                model="gpt-5",
+                messages=messages,
+                stream=True,
+            )
 
-        # Stream the response to the app using `st.write_stream`.
-        st.write_stream(stream)
+            # Stream the response to the app using `st.write_stream`.
+            st.write_stream(stream)
+        except AuthenticationError:
+            st.error("Invalid OpenAI API key. Please check your API key and try again.")
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
