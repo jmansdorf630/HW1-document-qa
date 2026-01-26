@@ -2,18 +2,12 @@ import streamlit as st
 from openai import OpenAI
 import PyPDF2
 
-def extract_text_from_pdf(pdf_path):
-    with open(pdf_path, 'rb') as file:
-        reader = PyPDF2.PdfFileReader(file)
-        text = ''
-        for page_num in range(reader.numPages):
-            page = reader.getPage(page_num)
-            text += page.extract_text()
-        return text
-
-pdf_path = 'path/to/your/pdf/document.pdf'
-pdf_text = extract_text_from_pdf(pdf_path)
-print(pdf_text)
+def read_pdf(uploaded_file):
+    reader = PyPDF2.PdfReader(uploaded_file)
+    text = ''
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
 
 
 # Show title and description.
@@ -49,7 +43,15 @@ else:
     if uploaded_file and question:
 
         # Process the uploaded file and question.
-        document = uploaded_file.read().decode()
+        file_extension = uploaded_file.name.split('.')[-1].lower()
+        if file_extension == 'txt':
+            document = uploaded_file.read().decode()
+        elif file_extension == 'pdf':
+            document = read_pdf(uploaded_file)
+        else:
+            st.error("Unsupported file type. Please upload .txt or .pdf files.")
+            st.stop()
+
         messages = [
             {
                 "role": "user",
