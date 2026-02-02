@@ -2,6 +2,7 @@ import streamlit as st
 from openai import OpenAI, AuthenticationError
 import requests
 from bs4 import BeautifulSoup
+import os
 
 
 def read_url_content(url: str):
@@ -26,14 +27,9 @@ st.write(
     "Enter a URL below and generate a summary of the page content based on your selected options."
 )
 
-# Get the OpenAI API key (try secrets first, otherwise ask the user)
-openai_api_key = st.secrets.get("openai_api_key") if hasattr(st, "secrets") else None
-openai_api_key = st.text_input("OpenAI API Key", type="password", value=openai_api_key or "")
-
-# New: get Anthropic key as well (only show input if Anthropic is selected)
-anthropic_api_key = st.secrets.get("anthropic_api_key") if hasattr(st, "secrets") else None
-if llm_provider == "Anthropic (Claude)":
-    anthropic_api_key = st.text_input("Anthropic API Key", type="password", value=anthropic_api_key or "")
+# Load API keys from environment or Streamlit secrets (do NOT hardcode keys).
+openai_api_key = os.environ.get("OPENAI_API_KEY") or (st.secrets.get("openai_api_key") if hasattr(st, "secrets") else "")
+anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY") or (st.secrets.get("anthropic_api_key") if hasattr(st, "secrets") else "")
 
 # Sidebar for summary options and language & model selection.
 with st.sidebar:
@@ -54,6 +50,12 @@ with st.sidebar:
     language = st.selectbox("Output language", ("English", "Spanish", "French", "German", "Chinese (Simplified)", "Any"))
     use_advanced_model = st.checkbox("Use advanced model")
 
+    # Show the relevant API key input based on selected provider
+    if llm_provider == "OpenAI":
+        openai_api_key = st.text_input("OpenAI API Key", type="password", value=openai_api_key or (st.secrets.get("openai_api_key") if hasattr(st, "secrets") else ""))
+    elif llm_provider == "Anthropic (Claude)":
+        anthropic_api_key = st.text_input("Anthropic API Key", type="password", value=anthropic_api_key or (st.secrets.get("anthropic_api_key") if hasattr(st, "secrets") else ""))
+
 # Determine the model based on the checkbox and provider.
 if llm_provider == "OpenAI":
     model = "gpt-4" if use_advanced_model else "gpt-3.5-turbo"
@@ -68,8 +70,9 @@ url = st.text_input("Enter a URL to summarize", placeholder="https://example.com
 if st.button("Summarize"):
     if not url:
         st.warning("Please enter a URL to summarize.")
-    elif not openai_api_key:
-        st.warning("Please add your OpenAI API key to continue.")
+    elif (llm_provider == "OpenAI" and not openai_api_key) or (llm_provider == "Anthropic (Claude)" and not anthropic_api_key):
+        provider_name = "OpenAI" if llm_provider == "OpenAI" else "Anthropic (Claude)"
+        st.warning(f"Please add your {provider_name} API key to continue.")
     else:
         with st.spinner("Fetching page content..."):
             document = read_url_content(url)
