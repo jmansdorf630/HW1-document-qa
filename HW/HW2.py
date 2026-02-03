@@ -28,10 +28,9 @@ def app():
         "Enter a URL below and generate a summary of the page content based on your selected options."
     )
 
-    # Refresh API keys from environment / secrets (keeps values up-to-date)
-    global openai_api_key, anthropic_api_key
-    openai_api_key = os.environ.get("OPENAI_API_KEY") or (st.secrets.get("openai_api_key") if hasattr(st, "secrets") else "")
-    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY") or (st.secrets.get("anthropic_api_key") if hasattr(st, "secrets") else "")
+    # Do NOT pre-fill or store API keys in the app. Resolve them on-demand from environment/Streamlit secrets
+    # or the user's ephemeral input (entered without pre-filling). This avoids leaking keys in the UI/session.
+    # Keys are resolved later when the Summarize button is pressed.
 
     # Sidebar for summary options and language & model selection.
     with st.sidebar:
@@ -52,11 +51,13 @@ def app():
         language = st.selectbox("Output language", ("English", "Spanish", "French", "German", "Chinese (Simplified)", "Any"))
         use_advanced_model = st.checkbox("Use advanced model")
 
-        # Show the relevant API key input based on selected provider
+        # Show the relevant API key input based on selected provider (no pre-fill)
         if llm_provider == "OpenAI":
-            openai_api_key = st.text_input("OpenAI API Key", type="password", value=openai_api_key or (st.secrets.get("openai_api_key") if hasattr(st, "secrets") else ""))
+            st.info("OpenAI API key is read from the environment or Streamlit secrets. Enter a key below to use for this session (it will not be stored).")
+            st.text_input("OpenAI API Key", type="password", key="openai_input")
         elif llm_provider == "Anthropic (Claude)":
-            anthropic_api_key = st.text_input("Anthropic API Key", type="password", value=anthropic_api_key or (st.secrets.get("anthropic_api_key") if hasattr(st, "secrets") else ""))
+            st.info("Anthropic API key is read from the environment or Streamlit secrets. Enter a key below to use for this session (it will not be stored).")
+            st.text_input("Anthropic API Key", type="password", key="anthropic_input")
 
     # Determine the model based on the checkbox and provider.
     if llm_provider == "OpenAI":
@@ -71,23 +72,27 @@ def app():
     if st.button("Summarize"):
         if not url:
             st.warning("Please enter a URL to summarize.")
-        elif (llm_provider == "OpenAI" and not openai_api_key) or (llm_provider == "Anthropic (Claude)" and not anthropic_api_key):
-            provider_name = "OpenAI" if llm_provider == "OpenAI" else "Anthropic (Claude)"
-            st.warning(f"Please add your {provider_name} API key to continue.")
         else:
-            with st.spinner("Fetching page content..."):
-                document = read_url_content(url)
-            if not document:
-                st.error(f"Failed to read content from the URL: {url}")
+            # Resolve API key on-demand (env/secrets override by ephemeral session input)
+            openai_api_key = os.environ.get("OPENAI_API_KEY") or (st.secrets.get("openai_api_key") if hasattr(st, "secrets") else None) or st.session_state.get("openai_input")
+            anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY") or (st.secrets.get("anthropic_api_key") if hasattr(st, "secrets") else None) or st.session_state.get("anthropic_input")
+            if (llm_provider == "OpenAI" and not openai_api_key) or (llm_provider == "Anthropic (Claude)" and not anthropic_api_key):
+                provider_name = "OpenAI" if llm_provider == "OpenAI" else "Anthropic (Claude)"
+                st.warning(f"Please add your {provider_name} API key to continue.")
             else:
-                # Instruct the assistant about the requested output language.
-                if language == "Any":
-                    system_content = (
-                        "You are a helpful assistant. Respond in the language of the source document "
-                        "when possible; otherwise respond in English."
-                    )
+                with st.spinner("Fetching page content..."):
+                    document = read_url_content(url)
+                if not document:
+                    st.error(f"Failed to read content from the URL: {url}")
                 else:
-                    system_content = f"You are a helpful assistant. Please produce the summary in {language}."
+                    # Instruct the assistant about the requested output language.
+                    if language == "Any":
+                        system_content = (
+                            "You are a helpful assistant. Respond in the language of the source document "
+                            "when possible; otherwise respond in English."
+                        )
+                    else:
+                        system_content = f"You are a helpful assistant. Please produce the summary in {language}."
 
                 # Small UI note when language selection is 'Any'
                 if language == "Any":
