@@ -33,13 +33,12 @@ def app():
     # Keys are resolved later when the Summarize button is pressed.
 
     def _resolve_api_key(provider: str):
-        """Return (api_key, session_key_name) using env -> Streamlit secrets -> session input."""
+        """Return api_key using env -> Streamlit secrets only (no UI entry allowed)."""
         key_name = "openai_api_key" if provider == "OpenAI" else "anthropic_api_key"
-        session_key = "openai_input" if provider == "OpenAI" else "anthropic_input"
         env_key = os.environ.get(key_name.upper())
-        secrets_key = getattr(st, "secrets", {}).get(key_name) if getattr(st, "secrets", None) else None
-        session_value = st.session_state.get(session_key)
-        return env_key or secrets_key or session_value, session_key
+        secrets_dict = getattr(st, "secrets", None)
+        secrets_key = secrets_dict.get(key_name) if secrets_dict else None
+        return env_key or secrets_key
 
     # Sidebar for summary options and language & model selection.
     with st.sidebar:
@@ -60,13 +59,11 @@ def app():
         language = st.selectbox("Output language", ("English", "Spanish", "French", "German", "Chinese (Simplified)", "Any"))
         use_advanced_model = st.checkbox("Use advanced model")
 
-        # Show the relevant API key input based on selected provider (no pre-fill)
+        # For security, API keys cannot be entered or viewed in the app UI.
         if llm_provider == "OpenAI":
-            st.info("OpenAI API key is read from the environment or Streamlit secrets. Enter a key below to use for this session (it will not be stored).")
-            st.text_input("OpenAI API Key", type="password", key="openai_input")
+            st.info("OpenAI API key must be set via environment variable `OPENAI_API_KEY` or in `.streamlit/secrets.toml` as `openai_api_key`. For security, the app does not provide an input to view or enter secrets.")
         elif llm_provider == "Anthropic (Claude)":
-            st.info("Anthropic API key is read from the environment or Streamlit secrets. Enter a key below to use for this session (it will not be stored).")
-            st.text_input("Anthropic API Key", type="password", key="anthropic_input")
+            st.info("Anthropic API key must be set via environment variable `ANTHROPIC_API_KEY` or in `.streamlit/secrets.toml` as `anthropic_api_key`. For security, the app does not provide an input to view or enter secrets.")
 
     # Determine the model based on the checkbox and provider.
     if llm_provider == "OpenAI":
@@ -151,14 +148,6 @@ def app():
                     st.error("Invalid OpenAI API key. Please check your API key and try again.")
                 except Exception as e:
                     st.error(f"An error occurred while summarizing: {e}")
-                finally:
-                    # Clear ephemeral session inputs so keys aren't left in session state
-                    try:
-                        if session_key in st.session_state:
-                            st.session_state.pop(session_key, None)
-                    except Exception:
-                        # Don't raise if session state access fails; we only try to be defensive here.
-                        pass
 
 
 # expose runnable entrypoint for whatever loader expects it
