@@ -32,6 +32,15 @@ def app():
     # or the user's ephemeral input (entered without pre-filling). This avoids leaking keys in the UI/session.
     # Keys are resolved later when the Summarize button is pressed.
 
+    def _resolve_api_key(provider: str):
+        """Return (api_key, session_key_name) using env -> Streamlit secrets -> session input."""
+        key_name = "openai_api_key" if provider == "OpenAI" else "anthropic_api_key"
+        session_key = "openai_input" if provider == "OpenAI" else "anthropic_input"
+        env_key = os.environ.get(key_name.upper())
+        secrets_key = getattr(st, "secrets", {}).get(key_name) if getattr(st, "secrets", None) else None
+        session_value = st.session_state.get(session_key)
+        return env_key or secrets_key or session_value, session_key
+
     # Sidebar for summary options and language & model selection.
     with st.sidebar:
         st.header("Summary Options")
@@ -74,9 +83,8 @@ def app():
             st.warning("Please enter a URL to summarize.")
         else:
             # Resolve API key on-demand (env/secrets override by ephemeral session input)
-            openai_api_key = os.environ.get("OPENAI_API_KEY") or (st.secrets.get("openai_api_key") if hasattr(st, "secrets") else None) or st.session_state.get("openai_input")
-            anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY") or (st.secrets.get("anthropic_api_key") if hasattr(st, "secrets") else None) or st.session_state.get("anthropic_input")
-            if (llm_provider == "OpenAI" and not openai_api_key) or (llm_provider == "Anthropic (Claude)" and not anthropic_api_key):
+            api_key, session_key = _resolve_api_key(llm_provider)
+            if not api_key:
                 provider_name = "OpenAI" if llm_provider == "OpenAI" else "Anthropic (Claude)"
                 st.warning(f"Please add your {provider_name} API key to continue.")
             else:
@@ -106,49 +114,51 @@ def app():
                 # Create an OpenAI client and stream the summary to the page (or use Anthropic)
                 try:
                     if llm_provider == "OpenAI":
-                        if not openai_api_key:
-                            st.warning("Please add your OpenAI API key to continue.")
-                        else:
-                            client = OpenAI(api_key=openai_api_key)
-                            stream = client.chat.completions.create(
-                                model=model,
-                                messages=messages,
-                                stream=True,
-                            )
-                            st.header("Document Summary")
-                            st.write_stream(stream)
+                        client = OpenAI(api_key=api_key)
+                        stream = client.chat.completions.create(
+                            model=model,
+                            messages=messages,
+                            stream=True,
+                        )
+                        st.header("Document Summary")
+                        st.write_stream(stream)
 
                     else:  # Anthropic (Claude)
-                        if not anthropic_api_key:
-                            st.warning("Please add your Anthropic API key to continue.")
+                        # Build a simple prompt that includes the system instruction + user content.
+                        prompt = f"{system_content}\n\nHuman: {summary_type}: {document}\n\nAssistant:"
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {api_key}",
+                        }
+                        payload = {
+                            "model": model,
+                            "prompt": prompt,
+                            "max_tokens_to_sample": 1000,
+                        }
+                        resp = requests.post("https://api.anthropic.com/v1/complete", json=payload, headers=headers, timeout=30)
+                        if resp.status_code != 200:
+                            st.error(f"Anthropic API error ({resp.status_code}): {resp.text}")
                         else:
-                            # Build a simple prompt that includes the system instruction + user content.
-                            prompt = f"{system_content}\n\nHuman: {summary_type}: {document}\n\nAssistant:"
-                            headers = {
-                                "Content-Type": "application/json",
-                                "Authorization": f"Bearer {anthropic_api_key}",
-                            }
-                            payload = {
-                                "model": model,
-                                "prompt": prompt,
-                                "max_tokens_to_sample": 1000,
-                            }
-                            resp = requests.post("https://api.anthropic.com/v1/complete", json=payload, headers=headers, timeout=30)
-                            if resp.status_code != 200:
-                                st.error(f"Anthropic API error ({resp.status_code}): {resp.text}")
-                            else:
-                                data = resp.json()
-                                # Try common keys to find the completion text
-                                completion = data.get("completion") or data.get("completion", "")
-                                # Fallback to whole text if structure differs
-                                completion_text = completion if isinstance(completion, str) else data.get("text") or str(data)
-                                st.header("Document Summary")
-                                st.write(completion_text)
+                            data = resp.json()
+                            # Try common keys to find the completion text
+                            completion = data.get("completion") or data.get("completion", "")
+                            # Fallback to whole text if structure differs
+                            completion_text = completion if isinstance(completion, str) else data.get("text") or str(data)
+                            st.header("Document Summary")
+                            st.write(completion_text)
 
                 except AuthenticationError:
                     st.error("Invalid OpenAI API key. Please check your API key and try again.")
                 except Exception as e:
                     st.error(f"An error occurred while summarizing: {e}")
+                finally:
+                    # Clear ephemeral session inputs so keys aren't left in session state
+                    try:
+                        if session_key in st.session_state:
+                            st.session_state.pop(session_key, None)
+                    except Exception:
+                        # Don't raise if session state access fails; we only try to be defensive here.
+                        pass
 
 
 # expose runnable entrypoint for whatever loader expects it
