@@ -1,5 +1,4 @@
 import re
-import sys
 import streamlit as st
 from openai import OpenAI
 import requests
@@ -180,4 +179,6 @@ if prompt := st.chat_input("Enter a message"):
     st.session_state.messages = st.session_state.messages[-MEMORY_BUFFER_SIZE:]
 
 # For runners that expect module.app (e.g. IDE or Streamlit launcher loading HW.HW3).
-app = sys.modules[__name__]
+def app():
+    """Callable so launchers can invoke app(); Streamlit runs on module load."""
+    pass
