@@ -1,7 +1,6 @@
 import re
 import streamlit as st
 from openai import OpenAI
-from tiktoken import tiktoken
 import requests
 
 # Show title and description.
@@ -43,21 +42,13 @@ st.sidebar.subheader("Document URLs")
 url1 = st.sidebar.text_input("URL 1 (optional)", placeholder="https://example.com")
 url2 = st.sidebar.text_input("URL 2 (optional)", placeholder="https://example.com")
 
-# Token counting for chat messages (same encoding family as gpt-4o / gpt-4o-mini).
-try:
-    encoding = tiktoken.encoding_for_model("gpt-4o")
-except Exception:
-    encoding = tiktoken.get_encoding("cl100k_base")
-
-
+# Approximate token count (~4 chars per token for English; no tiktoken dependency).
 def count_tokens(messages):
-    """Total number of tokens for OpenAI chat messages."""
+    """Approximate total tokens for chat messages."""
     total = 3  # reply priming
     for m in messages:
-        total += 4
-        total += len(encoding.encode(m["role"]))
-        total += len(encoding.encode(m.get("content", "") or ""))
-    return total
+        total += 4 + len((m.get("content") or "") or "") + len(m.get("role", ""))
+    return total // 4
 
 
 def get_url_text(url):
