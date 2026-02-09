@@ -17,19 +17,34 @@ def count_tokens(messages):
     return total // 4
 
 
+# Browser-like headers so servers that block scripts/bots still allow the request.
+REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
 def get_url_text(url):
     """Fetch URL and return plain text (strip HTML tags). Never discarded—used in system prompt."""
     if not url or not str(url).strip():
         return ""
     try:
-        r = requests.get(str(url).strip(), timeout=10)
+        r = requests.get(
+            str(url).strip(),
+            timeout=15,
+            headers=REQUEST_HEADERS,
+            allow_redirects=True,
+        )
         r.raise_for_status()
+        if r.encoding is None:
+            r.encoding = "utf-8"
         text = r.text
         text = re.sub(r"<[^>]+>", " ", text)
         text = re.sub(r"\s+", " ", text).strip()
         return (text[:15000] + "...") if len(text) > 15000 else text
-    except Exception:
-        return "[Could not load URL.]"
+    except Exception as e:
+        return f"[Could not load URL: {e!s}]"
 
 
 def is_yes(text):
@@ -91,12 +106,22 @@ def app():
     url1 = st.sidebar.text_input("URL 1 (optional)", placeholder="https://example.com")
     url2 = st.sidebar.text_input("URL 2 (optional)", placeholder="https://example.com")
 
-    # Build document context from sidebar URLs.
+    # Build document context from sidebar URLs and show read status.
     _context_parts = []
     if url1:
-        _context_parts.append("Document 1:\n" + get_url_text(url1))
+        doc1 = get_url_text(url1)
+        _context_parts.append("Document 1:\n" + doc1)
+        if doc1.startswith("[Could not load"):
+            st.sidebar.error("URL 1: could not load")
+        else:
+            st.sidebar.success(f"URL 1: read {len(doc1):,} chars")
     if url2:
-        _context_parts.append("Document 2:\n" + get_url_text(url2))
+        doc2 = get_url_text(url2)
+        _context_parts.append("Document 2:\n" + doc2)
+        if doc2.startswith("[Could not load"):
+            st.sidebar.error("URL 2: could not load")
+        else:
+            st.sidebar.success(f"URL 2: read {len(doc2):,} chars")
     document_context = "\n\n".join(_context_parts) if _context_parts else "No documents provided."
 
     kid_friendly_system = (
