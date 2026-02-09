@@ -5,7 +5,7 @@ st.set_page_config(page_title="HW Manager")
 st.title("🔧 HW Manager")
 
 # Sidebar navigation
-page = st.sidebar.selectbox("Select a page", ("Home", "HW1", "HW2"))
+page = st.sidebar.selectbox("Select a page", ("Home", "HW1", "HW2", "HW3"))
 
 if page == "Home":
     st.header("Welcome to HW Manager")
@@ -24,3 +24,10 @@ elif page == "HW2":
         hw2.app()
     except Exception as e:
         st.error(f"Failed to load HW2: {e}")
+
+elif page == "HW3":
+    try:
+        hw3 = importlib.import_module("HW.HW3")
+        hw3.app()
+    except Exception as e:
+        st.error(f"Failed to load HW3: {e}")
