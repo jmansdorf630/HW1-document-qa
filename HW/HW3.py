@@ -94,12 +94,13 @@ def app():
     st.sidebar.subheader("LLM Settings")
     llm_vendor = st.sidebar.selectbox("Select LLM Vendor", ("OpenAI", "Anthropic"))
 
+    # Only OpenAI is implemented; Anthropic selection falls back to OpenAI to avoid 404.
     if llm_vendor == "OpenAI":
         model_to_use = "gpt-4o"
         st.sidebar.info("Using GPT-4o (latest premium)")
     else:
-        model_to_use = "claude-opus-4-1"
-        st.sidebar.info("Using Claude Opus 4.1 (latest premium)")
+        model_to_use = "gpt-4o"
+        st.sidebar.warning("Anthropic not configured here; using GPT-4o.")
 
     st.sidebar.write(f"**Model:** {model_to_use}")
     st.sidebar.subheader("Document URLs")
