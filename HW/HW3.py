@@ -1,7 +1,7 @@
 import re
 import streamlit as st
 from openai import OpenAI
-import tiktoken
+from tiktoken import tiktoken
 import requests
 
 # Show title and description.
