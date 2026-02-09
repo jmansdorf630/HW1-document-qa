@@ -1,7 +1,6 @@
 import re
 import streamlit as st
 from openai import OpenAI
-from anthropic import Anthropic
 import tiktoken
 import requests
 
