@@ -1,4 +1,5 @@
 import re
+import sys
 import streamlit as st
 from openai import OpenAI
 import requests
@@ -177,3 +178,6 @@ if prompt := st.chat_input("Enter a message"):
 
     # 6-message buffer: keep only last MEMORY_BUFFER_SIZE messages for next turn
     st.session_state.messages = st.session_state.messages[-MEMORY_BUFFER_SIZE:]
+
+# For runners that expect module.app (e.g. IDE or Streamlit launcher loading HW.HW3).
+app = sys.modules[__name__]
