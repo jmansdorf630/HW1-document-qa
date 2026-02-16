@@ -322,6 +322,8 @@ st.caption(caption)
 st.write("")  # spacing
 
 # --- Lab 3–style setup: token counting, model choice, phase, messages ---
+# (a) Memory conversation buffer: store up to the last 5 interactions (each = user + assistant pair)
+MAX_INTERACTIONS = 5
 max_tokens = 1000
 openAI_model = st.sidebar.selectbox("Which Model?", ("mini", "regular"), key="lab4_model")
 model_to_use = "gpt-4o-mini" if openAI_model == "mini" else "gpt-4o"
@@ -352,6 +354,15 @@ if "lab4_phase" not in st.session_state:
     st.session_state.lab4_phase = "ask_question"
 if "lab4_last_question" not in st.session_state:
     st.session_state.lab4_last_question = ""
+
+
+def _trim_to_last_n_interactions(messages, n=MAX_INTERACTIONS):
+    """Keep at most the last n interactions (each = user + assistant pair)."""
+    max_messages = n * 2 + 1  # 1 optional initial greeting + n pairs
+    if len(messages) <= max_messages:
+        return messages
+    prefix = [messages[0]] if messages and messages[0]["role"] == "assistant" else []
+    return prefix + messages[-(n * 2) :]
 
 
 def is_yes(text):
@@ -478,11 +489,5 @@ if prompt := st.chat_input("Enter a message"):
         st.session_state.lab4_messages.append({"role": "assistant", "content": response})
         st.session_state.lab4_phase = "answered_ask_more"
 
-    # Trim message history to stay under token budget
-    messages = st.session_state.lab4_messages
-    while count_tokens(messages) > max_tokens and len(messages) > 2:
-        if messages[0]["role"] == "assistant" and len(messages) > 3:
-            messages = [messages[0]] + messages[3:]
-        else:
-            messages = messages[2:]
-    st.session_state.lab4_messages = messages
+    # (a) Trim conversation buffer to at most the last 5 interactions
+    st.session_state.lab4_messages = _trim_to_last_n_interactions(st.session_state.lab4_messages)
