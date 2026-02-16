@@ -430,11 +430,12 @@ def app():
                 st.session_state.lab4_last_question = prompt
 
             # Retrieve relevant chunks from syllabi and (if available) SU orgs HTML collections
-            n_results = 3
+            n_results_syllabi = 3
+            n_results_su_orgs = 6  # Retrieve more org chunks so org questions get ample context
             context_parts = []
             results = vectordb.query(
                 query_texts=[prompt],
-                n_results=min(n_results, vectordb.count()),
+                n_results=min(n_results_syllabi, vectordb.count()),
                 include=["documents", "metadatas"],
             )
             if results and results["documents"] and results["documents"][0]:
@@ -445,7 +446,7 @@ def app():
             if su_orgs_vectordb and su_orgs_vectordb.count() > 0:
                 su_results = su_orgs_vectordb.query(
                     query_texts=[prompt],
-                    n_results=min(n_results, su_orgs_vectordb.count()),
+                    n_results=min(n_results_su_orgs, su_orgs_vectordb.count()),
                     include=["documents", "metadatas"],
                 )
                 if su_results and su_results["documents"] and su_results["documents"][0]:
@@ -460,9 +461,10 @@ def app():
                 KID_FRIENDLY_SYSTEM
                 + "\n\nYou have access to the following excerpts from course syllabi and SU organization pages (retrieved by RAG). "
                 "When your answer is based on these excerpts, you MUST say so clearly at the start, e.g. "
-                "'Based on the course syllabi:' or 'According to the syllabus materials I have:'. "
-                "When the answer is NOT in the excerpts, you MUST say so clearly, e.g. "
-                "'This isn’t in the syllabi I have; from general knowledge:' or 'The syllabi don’t mention this; here’s what I know:'. "
+                "'Based on the course syllabi:' or 'According to the SU organization pages:' or 'According to the materials I have:'. "
+                "When the answer is NOT in the excerpts (neither syllabi nor organization pages), you MUST say so clearly, e.g. "
+                "'This isn’t in the syllabi or organization materials I have; from general knowledge:' or 'The materials don’t mention this; here’s what I know:'. "
+                "PREFER using the SU organization excerpts when the user asks about organizations, clubs, or student groups. "
                 "Keep answers simple and kid-friendly.\n\nExcerpts (use these when they answer the question):\n"
                 + context_text
             )
