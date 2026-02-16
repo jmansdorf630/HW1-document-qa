@@ -5,3 +5,4 @@ pypdf
 requests
 beautifulsoup4
 chromadb
+tiktoken
