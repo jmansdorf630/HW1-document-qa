@@ -1,5 +1,7 @@
 streamlit
 openai
 PyPDF2
+pypdf
 requests
 beautifulsoup4
+chromadb
