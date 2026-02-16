@@ -294,12 +294,12 @@ def create_su_orgs_vectordb():
     return collection
 
 
-# --- Lab 4 page UI: Course information chatbot (RAG) ---
+# --- HW4 page UI: Course information chatbot (RAG) ---
 MAX_INTERACTIONS = 5
 
 
 def app():
-    st.title("Lab 4 – Course information chatbot")
+    st.title("HW4 – Course information chatbot")
 
     # Initialize both vector DBs when the page loads (each created only if not already existing)
     vectordb = create_lab4_vectordb()
@@ -373,7 +373,7 @@ def app():
 
     if "lab4_messages" not in st.session_state:
         st.session_state.lab4_messages = [
-            {"role": "assistant", "content": "What would you like to know about the syllabi? Ask me anything!"}
+            {"role": "assistant", "content": "What would you like to know about the organizations? Ask me anything!"}
         ]
 
     # Ensure OpenAI client exists for chat
