@@ -1,6 +1,7 @@
 """
 HW7 – News reporting bot: answers only from indexed CSV articles (RAG).
-Pre-build the index with: python scripts/build_news_index.py
+Local: optional `python scripts/build_news_index.py`
+Cloud: index is built automatically on first load if missing (from data/news.csv).
 """
 from __future__ import annotations
 
@@ -11,12 +12,13 @@ from openai import OpenAI
 import chromadb
 from chromadb.utils import embedding_functions
 
-# Same paths as scripts/build_news_index.py
-COLLECTION_NAME = "NewsHW7"
-CHROMA_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "chroma_news_hw7")
+from HW.news_index_core import (
+    CHROMA_PATH,
+    COLLECTION_NAME,
+    EMBEDDING_MODEL,
+    build_news_index_from_csv,
+    resolve_csv_path,
 )
-EMBEDDING_MODEL = "text-embedding-3-small"
 
 # Semantic query used to surface "interesting" candidate articles
 INTERESTING_QUERY = (
@@ -30,9 +32,11 @@ def _get_openai_key() -> str:
 
 
 def load_news_collection():
-    """Load existing Chroma collection (built offline). No embedding of CSV at app start."""
+    """Load Chroma collection from disk if it exists and has data."""
     if "hw7_news_collection" in st.session_state:
-        return st.session_state.hw7_news_collection
+        c = st.session_state.hw7_news_collection
+        if c is not None and c.count() > 0:
+            return c
 
     api_key = _get_openai_key()
     openai_ef = embedding_functions.OpenAIEmbeddingFunction(
@@ -42,11 +46,42 @@ def load_news_collection():
     client = chromadb.PersistentClient(path=CHROMA_PATH)
     try:
         collection = client.get_collection(name=COLLECTION_NAME, embedding_function=openai_ef)
+        if collection.count() > 0:
+            st.session_state.hw7_news_collection = collection
+            return collection
     except Exception:
-        st.session_state.hw7_news_collection = None
+        pass
+
+    st.session_state.hw7_news_collection = None
+    return None
+
+
+def ensure_news_collection():
+    """
+    Return a populated Chroma collection: use disk if present, otherwise build from CSV
+    (needed for Streamlit Cloud where chroma_news_hw7 is not in git).
+    """
+    c = load_news_collection()
+    if c is not None:
+        return c
+
+    csv_path = resolve_csv_path(None)
+    if not csv_path:
         return None
 
+    api_key = _get_openai_key()
+    with st.spinner(
+        "Building news index from data/news.csv (first load; may take a few minutes)..."
+    ):
+        try:
+            collection = build_news_index_from_csv(api_key, csv_path)
+        except Exception as e:
+            st.session_state.hw7_news_collection = None
+            st.error(f"Failed to build news index: {e}")
+            return None
+
     st.session_state.hw7_news_collection = collection
+    st.success(f"Indexed {collection.count()} chunks.")
     return collection
 
 
@@ -198,16 +233,17 @@ Do not invent facts or cite sources outside the provided excerpts."""
 def app():
     st.title("HW7 – News reporting bot (CSV corpus only)")
     st.caption(
-        "Answers use only articles indexed from your CSV. "
-        "Build the index once with: `python scripts/build_news_index.py`"
+        "Answers use only articles from your CSV. On deploy, the index builds automatically "
+        "if missing. Locally you can also run `python scripts/build_news_index.py`."
     )
 
-    collection = load_news_collection()
+    collection = ensure_news_collection()
     if collection is None:
         st.error(
-            f"News index not found or empty. Set `OPENAI_API_KEY`, place `news.csv` in `data/`, "
-            f"then run from project root:\n\n`python scripts/build_news_index.py`\n\n"
-            f"Chroma path: `{CHROMA_PATH}`"
+            "Could not load or build the news index. Check:\n\n"
+            "- **Secrets:** `openai_api_key` is set in Streamlit Cloud secrets.\n"
+            "- **Data:** `data/news.csv` is in the repo (required for first-time build on Cloud).\n"
+            f"- **Chroma path:** `{CHROMA_PATH}`"
         )
         st.stop()
 
