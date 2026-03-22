@@ -6,3 +6,4 @@ requests
 beautifulsoup4
 chromadb
 tiktoken
+pandas

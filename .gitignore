@@ -1,5 +1,8 @@
 .streamlit/secrets.toml
 
+# HW7 local Chroma index (build with scripts/build_news_index.py)
+chroma_news_hw7/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
